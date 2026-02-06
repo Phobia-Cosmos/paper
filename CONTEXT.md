@@ -256,7 +256,7 @@ gh auth login
 
 ## 常用别名
 ```bash
-# 添加到 ~/.gitconfig
+# 添加到 ~/.gitconfig（已全局配置）
 [alias]
   st = status
   co = checkout
@@ -266,7 +266,44 @@ gh auth login
   lg = log --oneline -10
   pl = pull
   ps = push
+  save = !git add . && git commit -m "update" && git push
 ```
+
+### 一键clone代码（不含git历史）
+
+已配置全局alias `clone-clean`，用于快速clone代码并删除.git：
+
+```bash
+# 基本用法 - clone到同名目录
+git clone-clean git@github.com:comsec-group/inception.git
+
+# 指定目标目录名
+git clone-clean git@github.com:comsec-group/inception.git my-inception
+
+# 克隆其他仓库
+git clone-clean git@github.com:comsec-group/retbleed.git retbleed-latest
+```
+
+**工作流程示例：**
+```bash
+# 在paper目录下
+cd /home/undefined/cls/paper
+
+# 克隆上游代码（不含git历史）
+git clone-clean git@github.com:comsec-group/inception.git inception/upstream
+git clone-clean git@github.com:comsec-group/retbleed.git retbleed/upstream
+
+# 现在可以自由修改，不会与上游git冲突
+ls -la inception/upstream/
+ls -la retbleed/upstream/
+
+# 添加到你的paper仓库
+git add inception/upstream retbleed/upstream
+git commit -m "add upstream inception and retbleed"
+git push origin master
+```
+
+**注意：** 此方式不保留上游的git历史，适合只使用代码不跟踪上游更新的场景。
 
 ## 快速参考卡
 
