@@ -12,13 +12,65 @@ paper/
 ├── demos/              # 自定义demo代码
 ├── own_test/           # 个人测试代码
 ├── flush+reload-split/ # Flush+Reload攻击变体
+├── CONTEXT.md          # 本文档
 └── .gitignore          # Git忽略规则
 ```
 
 ## 仓库信息
 - **远程仓库**: git@github.com:Phobia-Cosmos/paper.git
-- **分支**: main
+- **当前分支**: master
 - **当前状态**: 代码已推送到GitHub
+
+## master vs main 分支名称区别
+
+**本质上没有区别**，都是默认分支名称：
+
+| 特性 | master | main |
+|------|--------|------|
+| 含义 | 传统命名 | 2020年后GitHub默认 |
+| 权限 | 相同 | 相同 |
+| 功能 | 完全相同 | 完全相同 |
+| 历史 | Git传统默认 | 更具包容性的命名 |
+
+**结论：** 保持一致即可，无需修改。当前使用 `master`。
+
+## AMD与Intel架构分支策略
+
+由于是**微架构攻击研究**，AMD和Intel在以下方面差异很大：
+- 分支预测器设计
+- 缓存结构
+- 投机执行机制
+- 特定指令行为
+
+### 推荐分支结构
+```bash
+# 创建架构分支
+git branch main                 # 公共代码、工具、文档
+git branch amd-zen              # AMD Zen架构特定代码
+git branch intel-skylake        # Intel Skylake及以后
+git branch intel-haswell        # Intel Haswell等旧架构
+
+# 开发时切换分支
+git checkout amd-zen            # 在AMD机器上开发
+git checkout intel-skylake      # 在Intel机器上开发
+
+# 合并公共代码到架构分支
+git checkout amd-zen
+git merge main                  # 合并公共代码
+```
+
+### 快速创建所有分支
+```bash
+# 在任意电脑上执行一次
+git checkout -b amd-zen
+git push origin amd-zen
+
+git checkout -b intel-skylake
+git push origin intel-skylake
+
+git checkout -b intel-haswell
+git push origin intel-haswell
+```
 
 ## Git操作命令
 
@@ -29,15 +81,17 @@ git status
 
 # 2. 添加修改的文件
 git add <文件名或目录>
+git add .                       # 添加所有修改
 
 # 3. 提交修改
 git commit -m "描述你的修改内容"
 
 # 4. 推送到GitHub
-git push origin main
+git push origin master          # 推送到master分支
+git push origin amd-zen         # 推送到AMD分支
 
-# 5. 同步他人修改
-git pull
+# 5. 同步最新代码
+git pull                        # 拉取并合并
 ```
 
 ### 查看历史
@@ -52,62 +106,152 @@ git diff
 git log -p <文件名>
 ```
 
-## 多电脑同步指南
+## PC2同步操作指南（仅inception和retbleed目录）
 
-### PC1 → PC2 同步
+### 场景描述
+PC2上只有 `inception/` 和 `retbleed/` 两个目录，代码可能与PC1有差异。
+
+### PC2首次同步步骤
+
 ```bash
-# 在PC1上推送
-git add .
-git commit -m "更新描述"
-git push
+# 1. 进入项目目录
+cd ~/paper                       # 或你的项目路径
+
+# 2. 克隆完整仓库
+git clone git@github.com:Phobia-Cosmos/paper.git
+cd paper
+
+# 3. 查看当前状态（此时应该看到PC1的所有文件）
+ls -la
+
+# 4. 备份PC2上的原始文件（重要！）
+mkdir -p ~/backup-pc2
+cp -r inception/ ~/backup-pc2/
+cp -r retbleed/ ~/backup-pc2/
+
+# 5. 对比PC2的inception和retbleed
+diff -r ~/backup-pc2/inception inception/
+diff -r ~/backup-pc2/retbleed retbleed/
+```
+
+### PC2同步修改到GitHub
+
+```bash
+# 方法1：直接覆盖PC1的版本（如果PC2是最新）
+git add inception retbleed
+git commit -m "sync from PC2 - 更新inception和retbleed"
+git push origin master
 ```
 
 ```bash
-# 在PC2上拉取
-git pull
+# 方法2：将PC2修改合并到PC1（如果两边都有修改）
+# 先查看差异
+git diff inception/ retbleed/
+
+# 创建合并提交
+git add inception retbleed
+git commit -m "merge from PC2 - 合并PC2的修改"
+git push origin master
 ```
 
-### PC2有修改需要合并
-```bash
-# 在PC2上
-git add .
-git commit -m "PC2上的修改"
-git push
-```
+### PC1同步PC2的修改
 
 ```bash
 # 在PC1上
 git pull
-# 如果有冲突，手动解决后
-git add .
-git commit -m "解决冲突"
+
+# 如果有冲突，手动解决：
+# 1. 查看冲突文件
+git status
+
+# 2. 编辑冲突文件（包含 <<<<<<< 和 >>>>>>> 标记）
+# 3. 标记已解决
+git add <冲突文件>
+
+# 4. 完成合并
+git commit -m "解决与PC2的冲突"
 git push
 ```
 
-### 处理冲突
-1. 运行 `git pull` 获取最新代码
-2. 打开冲突文件，查看 `<<<<<<<` 和 `>>>>>>>` 标记
-3. 手动保留正确的代码
-4. `git add <冲突文件>`
-5. `git commit` 完成合并
+### PC2同步PC1的修改
+
+```bash
+# 在PC2上
+git pull
+
+# 如果PC2的inception/retbleed有本地修改，会冲突
+# 查看冲突
+git status
+
+# 解决冲突后
+git add inception retbleed
+git commit -m "解决与PC1的冲突"
+git push
+```
+
+## 处理冲突的详细步骤
+
+1. **运行 `git pull` 获取最新代码**
+   ```bash
+   git pull origin master
+   ```
+
+2. **查看冲突文件**
+   ```bash
+   git status                          # 红色为冲突文件
+   git diff --name-only --diff-filter=U  # 只显示冲突文件
+   ```
+
+3. **手动编辑冲突文件**
+   ```bash
+   # 打开冲突文件，看到类似：
+   <<<<<<< HEAD
+   PC1的代码
+   =======
+   PC2的代码
+   >>>>>>> commit-id
+
+   # 保留正确的代码，删除标记
+   ```
+
+4. **标记冲突已解决**
+   ```bash
+   git add <冲突文件>
+   git add .                           # 或添加所有
+   ```
+
+5. **完成合并**
+   ```bash
+   git commit -m "解决冲突：描述如何解决"
+   git push
+   ```
 
 ## Gitignore配置
 已配置排除所有：
 - 编译产物（.o, .ko, .so, .elf, bin等）
-- 可执行文件
+- 可执行文件（无扩展名）
 - 临时文件（~, .swp, .tmp等）
 - 敏感配置（.claude.json, .env等）
+- 日志文件
 
-## GitHub Token配置
-如需使用GitHub CLI (gh命令)，需要在环境变量中设置：
+## GitHub认证
+
+### SSH认证（推荐）
 ```bash
-export GITHUB_TOKEN="your_token_here"
+# 测试SSH连接
+ssh -T git@github.com
+
+# 如果未认证，需要将 ~/.ssh/id_rsa.pub 内容添加到：
+# https://github.com/settings/keys
 ```
 
-或使用SSH认证（推荐）：
+### Token认证
 ```bash
-# 确保SSH key已添加到GitHub
-ssh -T git@github.com
+# 设置环境变量
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"
+
+# 或使用GitHub CLI
+gh auth login
 ```
 
 ## 常用别名
@@ -120,7 +264,25 @@ ssh -T git@github.com
   ci = commit
   df = diff
   lg = log --oneline -10
+  pl = pull
+  ps = push
 ```
+
+## 快速参考卡
+
+| 操作 | 命令 |
+|------|------|
+| 克隆仓库 | `git clone git@github.com:Phobia-Cosmos/paper.git` |
+| 查看状态 | `git status` |
+| 添加修改 | `git add .` |
+| 提交 | `git commit -m "message"` |
+| 推送 | `git push origin master` |
+| 拉取 | `git pull` |
+| 创建分支 | `git checkout -b branch-name` |
+| 切换分支 | `git checkout branch-name` |
+| 合并分支 | `git merge branch-name` |
+| 查看分支 | `git branch -a` |
+| 查看历史 | `git log --oneline -5` |
 
 ---
 创建时间: 2026-02-06
