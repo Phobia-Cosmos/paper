@@ -13,7 +13,7 @@ We provide the following.
 
 Please bear in mind that side-channels are messy and often requires some manual
 tweaking for them to start working. We provide a video demonstrating the effect
-on two different Zen2 ma chines.
+on two different Zen2 machines.
 
 We have tested it on the following setups.
 - AMD Ryzen 7 PRO 4750U and AMD EPYC 7252

