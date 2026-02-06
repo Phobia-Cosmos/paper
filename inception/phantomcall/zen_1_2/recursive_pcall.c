@@ -22,7 +22,6 @@
 #define PTRN 0x20100000000UL // Zen(+)
 #endif
 
-
 #define PHANTOM_CALL        0x40000000UL
 #define CALL_FN_TRAIN_ALIAS (PHANTOM_CALL ^ PTRN)
 

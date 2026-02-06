@@ -15,11 +15,3 @@ In folder out, you will find 6 files:
 
 On Zen 3/4, the *_16_calls.txt output files should show that some returns are hijacked. 
 The *_32_calls.txt output files should show hijacked returns for all AMD Zen microarchitectures.
-
----
-| 参数                | 含义                                   |
-| ----------------- | ------------------------------------ |
-| `$1 = CORE1`      | 运行实验程序的 CPU 核                        |
-| `$2 = CORE2`      | 要 **offline** 的 CPU 核（通常是 sibling）   |
-| `$3 = OUTPUT_DIR` | 实验结果输出目录                             |
-| `$4 = CLANG_ARGS` | 可选 clang 编译参数（如 `-O0 -march=native`） |

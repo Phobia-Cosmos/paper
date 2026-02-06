@@ -99,7 +99,7 @@ static int mod_spectre_init(void) {
     desc.kbr_dst = ((u64)&disclosure_gadget);
     desc.kbr_src = (u64)&speculation_primitive_ret;
 
-    prandom_bytes(random_bytes, 0x1000);
+    get_random_bytes(random_bytes, 0x1000);
 
     // The first byte is hardcoded. This allows us to infer the BTB collision
     // patterns from which we create the indexing functions.

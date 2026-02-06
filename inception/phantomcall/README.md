@@ -4,7 +4,7 @@ Simply run ./recursive_pcall.sh {ZEN/ZEN2/ZEN3/ZEN4} CORE1 CORE2 OUTPUT_DIR [CLA
 
 For example, if cores 1 and 9 are sibling hyperthreads, and you are running on Zen 2, you may want to run:
 
-./recursive_pcall.sh ZEN4 1 9 out "-no-pie -fno-pie -O0"
+./recursive_pcall.sh ZEN2 1 9 out
 
 In folder out, you will find up 2 files:
 
