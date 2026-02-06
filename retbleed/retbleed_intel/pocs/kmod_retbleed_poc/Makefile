@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-CC=gcc
+CC:=$(PWD)/gcc_wrapper
 mod-name := retbleed_poc
 obj-m += $(mod-name).o
 ccflags-y := \
@@ -16,10 +16,10 @@ all:
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
-.PHONY:
+.PHONY: install
 install: all
 	sudo insmod $(mod-name).ko
 
-.PHONY:
+.PHONY: remove
 remove:
 	sudo rmmod $(mod-name).ko

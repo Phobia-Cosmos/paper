@@ -1,0 +1,21 @@
+#!/bin/bash
+# GCC wrapper that filters out unsupported options
+args=()
+skip_next=0
+for arg in "$@"; do
+    if [ $skip_next -eq 1 ]; then
+        skip_next=0
+        continue
+    fi
+    case "$arg" in
+        -ftrivial-auto-var-init=*)
+            ;;
+        -ftrivial-auto-var-init)
+            skip_next=1
+            ;;
+        *)
+            args+=("$arg")
+            ;;
+    esac
+done
+exec /usr/bin/gcc "${args[@]}"
