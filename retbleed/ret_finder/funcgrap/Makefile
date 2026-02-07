@@ -9,5 +9,6 @@ all: funcgrap
 
 funcgrap: ./funcgrap.c
 	$(CC) $(CFLAGS) -o $@ ./funcgrap.c
+# 	TODO:setcap的作用是什麼?
 	sudo setcap CAP_SETUID=ep $@
 

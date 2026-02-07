@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #!/usr/bin/python3
+# TODO:请你根据这个文件的作用帮我分析should_fail和should_pass的作用是什么,为什么里面会有如此多的c代码,可以直接使用我们这个脚本来测试那些代码吗?
 import sys
 from capstone import Cs, CS_ARCH_X86, CS_MODE_64, CS_MODE_LITTLE_ENDIAN, x86
 
@@ -11,6 +12,7 @@ MAX_INS_SIZE = 8
 
 TARGET_CHUNK_SIZE = 0x1000
 CODE_CHUNK_SIZE = 2 * TARGET_CHUNK_SIZE
+# TODO:这个变量的意义是什么?
 INITIAL_SOURCES = [
             # using this for the end-to-end test on a vmlinux
             #  (x86.X86_REG_R14, (0x8, 0x108)), # REG, (min disp, max disp)
@@ -19,6 +21,7 @@ INITIAL_SOURCES = [
             (x86.X86_REG_R13, (0x8, 0x108)), # REG, (min disp, max disp)
 ]
 
+# TODO:这个是什么?md有哪些属性可以设置?
 md = Cs(CS_ARCH_X86, CS_MODE_64 + CS_MODE_LITTLE_ENDIAN)
 md.detail = True
 
@@ -67,6 +70,7 @@ LEAK32_REGS = [
 # 64 bit registers need minimum 43bit shr AND < 0xfffff
 
 
+# TODO:这个函数的想法是什么,这样做是为了什么?为什么需要把寄存器绑定在一起?
 # rakes a reg gives all regs that work on this reg
 def reg2regs(reg):
     regs = []
@@ -196,6 +200,7 @@ BB_END = [
     x86.X86_INS_JO, x86.X86_INS_JP, x86.X86_INS_JRCXZ, x86.X86_INS_JS, x86.X86_INS_CALL
 ]
 
+# TODO:ins的属性都有哪些?
 def insn_ops(ins):
     src = None
     dst = None
@@ -213,6 +218,7 @@ def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value in lst2]
     return lst3
 
+# TODO:这个函数为什么需要检测这么多的None情况?最后返回的是什么?
 # returns the src register that gets overridden
 def insn_overrides_srcs(ins, srcs):
     if ins.id in [x86.X86_INS_CMP, x86.X86_INS_TEST]:
@@ -254,7 +260,7 @@ def op_is_tmem(op):
     else:
         return False
 
-
+# TODO:这个函数的作用是?
 def op_is_tmem_index(op, reg):
     if (op.type == x86.X86_OP_MEM):
         return (reg_in(op.mem.base, TARGET_REGS) and reg_eq(op.mem.index, reg))
@@ -330,6 +336,7 @@ def insn_is_vector(insn):
             return True
     return False
 
+# TODO:下述一系列state_xx函数的作用分别是什么?
 # this assumes we're in state LOAD_A_PTR||LOAD_B_PTR
 def state_load_ptr(insn, valid_dst, valid_src):
     return is_load_to_reg(insn, valid_dst, valid_src)
@@ -364,6 +371,7 @@ def state_leak(insn, leak_regs, ptr_regs):
     if state_leak_op(src, leak_regs, ptr_regs):
         return src
 
+# TODO:为什么load前可以有多种不同的前缀,比如现在的t代表的是什么?
 def ins_is_tload(ins):
     if (len(ins.operands) == 2):
         dest, src = ins.operands
@@ -440,6 +448,7 @@ def print_ins(offset, ins, descr=""):
 def print_exit():
     print("\t*gadget*", flush=True)
 
+# TODO:这个commit的实际作用是什么,将值传递到对应的寄存器?
 def commit_load_to_reg(insn, my_dsts, my_srcs, my_ptr_regs, leak_regs):
     # my_srcs are my_src_aliases, so SHOULD update those too..
     dst, src, x = insn_ops(insn)
@@ -538,6 +547,7 @@ def is_dst_rb_ptr_and_leak(insn, my_ptr_regs, leak_regs):
     # look for arith add and then normal load.
     # can also be lea of course...
 
+# TODO:这个commit和前一个commit的作用有和不同?
 def commit_reg_load(insn, valid_dsts, my_ptr_regs, leak_regs):
     dst, src, x = insn_ops(insn)
 
@@ -603,6 +613,7 @@ def code_search(CODE, base_va):
         MAX_NUM_INS = min(__MAX_NUM_INS,
                           int((CODE_CHUNK_SIZE - offset) / MAX_INS_SIZE))
         va = base_va + offset
+        # TODO:这里是要获取什么信息吗?这是一个数组吗,为什么后续要获取__root_ins[0]?
         __root_ins = list(md.disasm(CODE[offset:], 0, count=1))
 
         if len(__root_ins) != 1:
@@ -612,6 +623,7 @@ def code_search(CODE, base_va):
         root_ins = __root_ins[0]
         my_srcs = [
         ] + INITIAL_SOURCES
+        # TODO:my_ptr_regs和my_dsts的区别是什么?
         my_dsts = [reg for reg in ALL_REG64]
         my_ptr_regs = [
             #  x86.X86_REG_RDI,
@@ -633,6 +645,7 @@ def code_search(CODE, base_va):
             continue
         # you are a useful insn if you create more srcs
         leak_regs = []
+        # TODO:这里的判断逻辑分别是什么以及各个逻辑内部都是在做什么东西?
         if insn_propagates_src(root_ins, my_srcs, my_dsts):
             commit_propagate_src(root_ins, my_srcs)
         elif state_load_ptr(root_ins, my_dsts, my_srcs):
@@ -649,7 +662,9 @@ def code_search(CODE, base_va):
             continue
         found.append((va, root_ins))
         va += root_ins.size
+
         for insn in md.disasm(CODE[offset+root_ins.size:], 0, count=MAX_NUM_INS):
+            # TODO:state的判断逻辑是怎么样的?state代表的是什么,为什么不同的state会有不同的处理逻辑?
             if (len(found) > 0):
                 found.append((va, insn))
             if state < 2 and len(my_srcs) == 0:
@@ -762,10 +777,12 @@ if len(sys.argv) > 2:
     START_VA = int(sys.argv[2], 16)
 
 with open(KERN_PATH, 'rb') as text:
+    # TODO:为什么将vmlinux当作ELF文件处理?iter_sections会提取出来什么?我需要你帮我打印出来详细的内容.
     elffile = ELFFile(text)
     execSections = [s for s in elffile.iter_sections()
                     if s.header.sh_flags & SH_FLAGS.SHF_EXECINSTR]
     for s in execSections:
+        # TODO:h的字段又有哪些?各自分别代表什么意思?
         h = s.header
         #  print("===> %s f_off=%x\tsz=%x\tva=%x" % (s.name.ljust(14), h.sh_offset, h.sh_size, h.sh_addr))
         file_offset = h.sh_offset

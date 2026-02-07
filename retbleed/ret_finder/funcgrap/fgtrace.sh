@@ -18,6 +18,7 @@ tracefs=/sys/kernel/debug
 PID=$1
 
 CPU=$3
+# TODO：为什么需要一个mask，这个代表什么意思？
 CPU_MASK=$(echo "obase=16; $[1<<$3]" | bc)
 
 while ! echo nop > $tracefs/tracing/current_tracer; do
